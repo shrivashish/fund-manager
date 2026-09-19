@@ -1,0 +1,739 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Fund Manager</title>
+<meta name="description" content="Track fund categories, expenses and automatic recurring funds.">
+<meta name="theme-color" content="#E7EDEA" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#0F1715" media="(prefers-color-scheme: dark)">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Funds">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700&family=Figtree:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #E7EDEA;
+    --surface: #FFFFFF;
+    --surface-2: #F2F6F4;
+    --ink: #14231F;
+    --muted: #55665F;
+    --line: #D2DBD7;
+    --fund: #0B6B4F;
+    --fund-soft: #DDF0E8;
+    --exp: #B42346;
+    --exp-soft: #F8E1E7;
+    --focus: #2457D6;
+    --overlay: rgba(14, 26, 22, .55);
+    --display: "Bricolage Grotesque", "Trebuchet MS", "Segoe UI", system-ui, sans-serif;
+    --body: "Figtree", "Segoe UI", system-ui, -apple-system, Roboto, sans-serif;
+    color-scheme: light;
+    box-sizing: border-box;
+    padding-top: env(safe-area-inset-top, 0px);
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #0F1715; --surface: #16211E; --surface-2: #1C2A26; --ink: #E6EFEB; --muted: #93A59E;
+      --line: #2A3A35; --fund: #4FD1A1; --fund-soft: #17362D; --exp: #F2708F; --exp-soft: #3A1B25;
+      --focus: #7FA2FF; --overlay: rgba(0, 0, 0, .65); color-scheme: dark;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #0F1715; --surface: #16211E; --surface-2: #1C2A26; --ink: #E6EFEB; --muted: #93A59E;
+    --line: #2A3A35; --fund: #4FD1A1; --fund-soft: #17362D; --exp: #F2708F; --exp-soft: #3A1B25;
+    --focus: #7FA2FF; --overlay: rgba(0, 0, 0, .65); color-scheme: dark;
+  }
+  html { scroll-padding-top: env(safe-area-inset-top, 0px); }
+  * { box-sizing: border-box; }
+  [hidden] { display: none !important; }
+  body {
+    margin: 0; background: var(--bg); color: var(--ink);
+    font-family: var(--body); font-size: 15px; line-height: 1.5;
+    font-variant-numeric: tabular-nums;
+  }
+  button, input, select, textarea { font: inherit; color: inherit; }
+  button { cursor: pointer; }
+  :focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+
+  .app { display: grid; grid-template-columns: 300px minmax(0, 1fr); max-width: 1180px; margin: 0 auto; min-height: 100vh; }
+
+  /* Sidebar */
+  .side { padding: 24px 16px 24px 20px; display: flex; flex-direction: column; gap: 18px; position: sticky; top: 0; align-self: start; max-height: 100vh; overflow-y: auto; }
+  .brand { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+  .brand h1 { font-family: var(--display); font-weight: 700; font-size: 22px; letter-spacing: -.01em; margin: 0; }
+  .total { background: var(--ink); color: var(--bg); border-radius: 14px; padding: 14px 16px; }
+  .total small { display: block; font-size: 13px; opacity: .75; }
+  .total strong { font-family: var(--display); font-size: 26px; font-weight: 700; letter-spacing: -.01em; }
+  .cats { display: flex; flex-direction: column; gap: 4px; }
+  .cat { display: grid; grid-template-columns: 10px 1fr auto; align-items: center; gap: 10px; text-align: left; width: 100%; background: transparent; border: 1px solid transparent; border-radius: 10px; padding: 10px 12px; }
+  .cat:hover { background: var(--surface-2); }
+  .cat.on { background: var(--surface); border-color: var(--line); }
+  .cat.on .cat-name { font-weight: 600; }
+  .dot { width: 10px; height: 10px; border-radius: 3px; background: var(--c, var(--muted)); }
+  .cat-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .cat-bal { color: var(--muted); font-size: 14px; }
+  .neg { color: var(--exp) !important; }
+  .side-foot { display: flex; flex-direction: column; gap: 8px; }
+
+  /* Buttons */
+  .btn { border: 1px solid var(--line); background: var(--surface); border-radius: 9px; padding: 9px 16px; font-weight: 500; min-height: 40px; }
+  .btn:hover { border-color: var(--muted); }
+  .btn.fund { background: var(--fund); border-color: var(--fund); color: #fff; }
+  .btn.expense { background: transparent; border-color: var(--exp); color: var(--exp); }
+  .btn.expense:hover { background: var(--exp-soft); }
+  .btn.primary { background: var(--ink); border-color: var(--ink); color: var(--bg); }
+  .btn.danger { background: var(--exp); border-color: var(--exp); color: #fff; }
+  .btn.ghost { background: transparent; }
+  .btn.small { min-height: 34px; padding: 6px 12px; font-size: 14px; }
+  :root:not([data-theme="light"]) .btn.fund { color: #08251C; }
+  .link { background: none; border: 0; color: var(--muted); padding: 6px 8px; border-radius: 6px; font-size: 14px; min-height: 32px; }
+  .link:hover { color: var(--ink); text-decoration: underline; }
+  .link.del { color: var(--exp); }
+
+  /* Main */
+  main { padding: 24px 20px 48px 8px; min-width: 0; display: flex; flex-direction: column; gap: 18px; }
+  .banner { display: flex; gap: 12px; justify-content: space-between; align-items: flex-start; background: var(--fund-soft); border: 1px solid var(--fund); border-radius: 12px; padding: 12px 16px; }
+  .banner.warn { background: var(--exp-soft); border-color: var(--exp); }
+  .banner p { margin: 0; }
+  .banner ul { margin: 4px 0 0; padding-left: 18px; }
+  .panel { background: var(--surface); border: 1px solid var(--line); border-radius: 16px; }
+  .head { padding: 22px 24px; display: flex; flex-direction: column; gap: 16px; }
+  .head-top { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; flex-wrap: wrap; }
+  .head h2 { font-family: var(--display); font-size: 20px; font-weight: 700; margin: 0; display: flex; align-items: center; gap: 10px; }
+  .balance-label { color: var(--muted); font-size: 14px; }
+  .balance { font-family: var(--display); font-weight: 700; font-size: clamp(2.5rem, 7vw, 3.8rem); line-height: 1.05; letter-spacing: -.02em; margin: 0; }
+  .meter { display: flex; height: 10px; border-radius: 99px; overflow: hidden; background: var(--line); }
+  .meter-left { background: var(--fund); }
+  .meter-spent { background: var(--exp); }
+  .legend { display: flex; flex-wrap: wrap; gap: 6px 22px; color: var(--muted); font-size: 14px; }
+  .legend b { color: var(--ink); font-weight: 600; }
+  .actions-row { display: flex; gap: 8px; flex-wrap: wrap; }
+
+  .section-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 16px 20px; flex-wrap: wrap; }
+  .section-head h3 { font-family: var(--display); font-size: 17px; font-weight: 700; margin: 0; }
+  .empty { padding: 4px 20px 22px; color: var(--muted); }
+  .empty.big { padding: 40px 24px; text-align: center; }
+  .empty.big h2 { font-family: var(--display); color: var(--ink); margin: 0 0 6px; }
+
+  .rule { display: flex; justify-content: space-between; gap: 12px; padding: 14px 20px; border-top: 1px solid var(--line); flex-wrap: wrap; }
+  .rule-main strong { font-weight: 600; }
+  .rule-sub { color: var(--muted); font-size: 14px; }
+  .rule.paused .rule-main { opacity: .6; }
+  .rule-act { display: flex; gap: 2px; align-items: center; }
+
+  .seg { display: inline-flex; background: var(--surface-2); border: 1px solid var(--line); border-radius: 10px; padding: 3px; gap: 2px; }
+  .seg label { position: relative; margin: 0; }
+  .seg input { position: absolute; opacity: 0; pointer-events: none; }
+  .seg span, .seg button { display: block; padding: 6px 14px; border-radius: 7px; border: 0; background: transparent; color: var(--muted); font-weight: 500; cursor: pointer; }
+  .seg input:checked + span, .seg button[aria-pressed="true"] { background: var(--ink); color: var(--bg); }
+  .seg input:focus-visible + span { outline: 2px solid var(--focus); outline-offset: 2px; }
+
+  .tx { display: grid; grid-template-columns: 120px minmax(0, 1fr) auto auto; align-items: center; gap: 12px; padding: 12px 20px; border-top: 1px solid var(--line); }
+  .tx-date { color: var(--muted); font-size: 14px; }
+  .tx-note { overflow-wrap: anywhere; }
+  .tx-note.dim { color: var(--muted); }
+  .tag { display: inline-block; margin-left: 8px; padding: 1px 8px; border-radius: 99px; font-size: 12px; background: var(--surface-2); border: 1px solid var(--line); color: var(--muted); }
+  .tx-amt { font-weight: 600; text-align: right; }
+  .tx-amt.fund { color: var(--fund); }
+  .tx-amt.exp { color: var(--exp); }
+  .tx-act { display: flex; }
+  @media (max-width: 560px) {
+    .tx { grid-template-columns: minmax(0, 1fr) auto; grid-template-areas: "note amt" "date act"; row-gap: 4px; }
+    .tx-date { grid-area: date; } .tx-note { grid-area: note; } .tx-amt { grid-area: amt; } .tx-act { grid-area: act; justify-content: flex-end; }
+  }
+
+  /* Modal */
+  .overlay { position: fixed; inset: 0; background: var(--overlay); display: flex; align-items: center; justify-content: center; padding: calc(16px + env(safe-area-inset-top, 0px)) 16px calc(16px + env(safe-area-inset-bottom, 0px)); z-index: 20; }
+  .modal { background: var(--surface); border: 1px solid var(--line); border-radius: 18px; padding: 22px; width: 100%; max-width: 480px; max-height: 100%; overflow-y: auto; display: flex; flex-direction: column; gap: 14px; }
+  .modal h2 { font-family: var(--display); font-size: 20px; margin: 0; }
+  .modal .sub { margin: -8px 0 0; color: var(--muted); font-size: 14px; }
+  .field { display: flex; flex-direction: column; gap: 5px; }
+  .field > label, .field > .lbl { font-size: 14px; font-weight: 500; }
+  .field .hint { font-size: 13px; color: var(--muted); }
+  input[type="text"], input[type="number"], input[type="date"], select, textarea { width: 100%; min-height: 42px; padding: 8px 12px; background: var(--surface-2); border: 1px solid var(--line); border-radius: 9px; }
+  textarea { font-family: ui-monospace, Menlo, Consolas, monospace; font-size: 12px; min-height: 110px; resize: vertical; }
+  .two { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  .inline { display: flex; align-items: center; gap: 10px; }
+  .inline input { max-width: 90px; }
+  .chips { display: flex; flex-wrap: wrap; gap: 6px; }
+  .chips label { position: relative; margin: 0; }
+  .chips input { position: absolute; opacity: 0; pointer-events: none; }
+  .chips span { display: block; padding: 6px 12px; border: 1px solid var(--line); border-radius: 99px; background: var(--surface-2); cursor: pointer; font-size: 14px; }
+  .chips input:checked + span { background: var(--fund); border-color: var(--fund); color: #fff; }
+  :root:not([data-theme="light"]) .chips input:checked + span { color: #08251C; }
+  .chips input:focus-visible + span { outline: 2px solid var(--focus); outline-offset: 2px; }
+  .preview { background: var(--surface-2); border-radius: 10px; padding: 10px 12px; font-size: 14px; color: var(--muted); }
+  .err { color: var(--exp); font-size: 14px; min-height: 0; }
+  .modal-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 4px; }
+  .status { font-size: 13px; color: var(--muted); }
+
+  @media (max-width: 860px) {
+    .app { grid-template-columns: 1fr; }
+    .side { position: static; max-height: none; padding: 18px 16px 4px; }
+    .cats { flex-direction: row; overflow-x: auto; padding-bottom: 6px; gap: 8px; }
+    .cat { grid-template-columns: 10px auto; grid-template-areas: "dot name" "bal bal"; width: auto; min-width: 130px; flex: none; border-color: var(--line); background: var(--surface); }
+    .cat .dot { grid-area: dot; } .cat .cat-name { grid-area: name; } .cat .cat-bal { grid-area: bal; grid-column: 1 / -1; }
+    .side-foot { flex-direction: row; }
+    .side-foot .btn { flex: 1; }
+    main { padding: 12px 16px 40px; }
+  }
+  @media (prefers-reduced-motion: reduce) { * { transition: none !important; animation: none !important; } }
+</style>
+</head>
+<body>
+<div class="app">
+  <aside class="side">
+    <div class="brand"><h1>Fund Manager</h1></div>
+    <div class="total"><small>Total across categories</small><strong id="total">0</strong></div>
+    <nav class="cats" id="cats" aria-label="Fund categories"></nav>
+    <div class="side-foot">
+      <button class="btn" data-action="add-cat">New category</button>
+      <button class="btn fund" id="install" hidden>Install app</button>
+      <button class="btn ghost" data-action="settings">Settings and backup</button>
+    </div>
+  </aside>
+  <main id="main"></main>
+</div>
+<div id="modal-root"></div>
+
+<script>
+(function () {
+  'use strict';
+
+  var KEY = 'fundmanager.v1';
+  var PALETTE = ['#0B6B4F', '#2457D6', '#B4451F', '#7A3FA0', '#B08A00', '#0F7C8C', '#B42346', '#5B6B66'];
+  var DAY_NAMES = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+  var WEEK_ORDER = [1, 2, 3, 4, 5, 6, 0];
+  var CURRENCIES = { INR: 'en-IN', USD: 'en-US', EUR: 'en-IE', GBP: 'en-GB', AED: 'en-AE' };
+  var MAX_PER_RUN = 1000;
+
+  var storageOk = true;
+  var state = load();
+  var ui = { filter: 'all', banner: null };
+
+  /* ---------- helpers ---------- */
+  function $(s) { return document.querySelector(s); }
+  function esc(s) { return String(s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }
+  function uid() { return Math.random().toString(36).slice(2, 9) + Date.now().toString(36).slice(-4); }
+  function pad(n) { return String(n).padStart(2, '0'); }
+  function round2(n) { return Math.round(n * 100) / 100; }
+  function dayNum(s) { var p = s.split('-').map(Number); return Math.round(Date.UTC(p[0], p[1] - 1, p[2]) / 864e5); }
+  function utcStr(d) { return d.getUTCFullYear() + '-' + pad(d.getUTCMonth() + 1) + '-' + pad(d.getUTCDate()); }
+  function fromNum(n) { return new Date(n * 864e5); }
+  function todayStr() { var d = new Date(); return d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate()); }
+  function addDays(s, n) { return utcStr(fromNum(dayNum(s) + n)); }
+  function dow(s) { return fromNum(dayNum(s)).getUTCDay(); }
+  function dom(s) { return fromNum(dayNum(s)).getUTCDate(); }
+  function fmtDate(s) {
+    if (!s) return '';
+    var p = s.split('-').map(Number);
+    return new Date(p[0], p[1] - 1, p[2]).toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' });
+  }
+  function ord(n) { var s = ['th', 'st', 'nd', 'rd'], v = n % 100; return n + (s[(v - 20) % 10] || s[v] || s[0]); }
+  function money(n) {
+    var cur = CURRENCIES[state.currency] ? state.currency : 'INR';
+    try { return new Intl.NumberFormat(CURRENCIES[cur], { style: 'currency', currency: cur }).format(n); }
+    catch (e) { return cur + ' ' + n.toFixed(2); }
+  }
+
+  /* ---------- storage ---------- */
+  function defaults() { return { v: 1, currency: 'INR', categories: [], transactions: [], rules: [], selected: null }; }
+  function normalize(s) {
+    var d = defaults();
+    if (!s || typeof s !== 'object') return d;
+    d.currency = CURRENCIES[s.currency] ? s.currency : 'INR';
+    d.categories = Array.isArray(s.categories) ? s.categories : [];
+    d.transactions = Array.isArray(s.transactions) ? s.transactions : [];
+    d.rules = Array.isArray(s.rules) ? s.rules : [];
+    d.selected = s.selected || null;
+    return d;
+  }
+  function load() {
+    try {
+      var raw = localStorage.getItem(KEY);
+      if (raw) return normalize(JSON.parse(raw));
+    } catch (e) { storageOk = false; }
+    return defaults();
+  }
+  function save() {
+    try { localStorage.setItem(KEY, JSON.stringify(state)); }
+    catch (e) { storageOk = false; }
+  }
+
+  /* ---------- data helpers ---------- */
+  function getCat(id) { return state.categories.filter(function (c) { return c.id === id; })[0]; }
+  function stats(catId) {
+    var f = 0, s = 0;
+    state.transactions.forEach(function (t) {
+      if (catId && t.catId !== catId) return;
+      if (t.type === 'fund') f += t.amount; else s += t.amount;
+    });
+    f = round2(f); s = round2(s);
+    return { funded: f, spent: s, balance: round2(f - s) };
+  }
+
+  /* ---------- schedule engine ---------- */
+  // Returns dates (YYYY-MM-DD) the rule fires on, after `afterStr` (exclusive) up to `uptoStr` (inclusive).
+  function occurrences(rule, afterStr, uptoStr, limit) {
+    var out = [], max = limit || MAX_PER_RUN;
+    var startN = dayNum(rule.startDate);
+    var from = startN;
+    if (afterStr) from = Math.max(from, dayNum(afterStr) + 1);
+    var to = dayNum(uptoStr);
+    if (rule.endDate) to = Math.min(to, dayNum(rule.endDate));
+    var every = Math.max(1, parseInt(rule.every, 10) || 1);
+    var startWeekN = startN - ((fromNum(startN).getUTCDay() + 6) % 7); // Monday of the start week
+    var sd = fromNum(startN);
+    var startMonthIdx = sd.getUTCFullYear() * 12 + sd.getUTCMonth();
+    for (var n = from; n <= to; n++) {
+      var dt = fromNum(n), hit = false;
+      if (rule.frequency === 'daily') {
+        hit = ((n - startN) % every) === 0;
+      } else if (rule.frequency === 'weekly') {
+        var wk = Math.floor((n - startWeekN) / 7);
+        hit = (wk % every === 0) && rule.weekdays.indexOf(dt.getUTCDay()) !== -1;
+      } else {
+        var mi = dt.getUTCFullYear() * 12 + dt.getUTCMonth();
+        if ((mi - startMonthIdx) % every === 0) {
+          var dim = new Date(Date.UTC(dt.getUTCFullYear(), dt.getUTCMonth() + 1, 0)).getUTCDate();
+          hit = dt.getUTCDate() === Math.min(rule.dayOfMonth, dim);
+        }
+      }
+      if (hit) { out.push(utcStr(dt)); if (out.length >= max) break; }
+    }
+    return out;
+  }
+
+  // Creates any entries that are due. Returns true if something was added.
+  function runSchedules() {
+    var today = todayStr(), lines = [], changed = false;
+    state.rules.forEach(function (r) {
+      if (!r.active || !getCat(r.catId)) return;
+      var occ = occurrences(r, r.lastRun, today);
+      if (!occ.length) { if (r.lastRun !== today) { r.lastRun = today; changed = true; } return; }
+      occ.forEach(function (d) {
+        state.transactions.push({ id: uid(), catId: r.catId, type: 'fund', amount: r.amount, date: d, note: r.note || '', ruleId: r.id, created: Date.now() });
+      });
+      r.lastRun = occ.length >= MAX_PER_RUN ? occ[occ.length - 1] : today;
+      changed = true;
+      lines.push(occ.length + ' \u00d7 ' + money(r.amount) + ' to ' + getCat(r.catId).name);
+    });
+    if (changed) save();
+    if (lines.length) { ui.banner = { kind: 'ok', lines: lines }; return true; }
+    return false;
+  }
+
+  function describe(r) {
+    var e = r.every;
+    var txt;
+    if (r.frequency === 'daily') txt = e === 1 ? 'Every day' : 'Every ' + e + ' days';
+    else if (r.frequency === 'weekly') {
+      var days = WEEK_ORDER.filter(function (d) { return r.weekdays.indexOf(d) !== -1; }).map(function (d) { return DAY_NAMES[d]; }).join(', ');
+      txt = (e === 1 ? 'Every week' : 'Every ' + e + ' weeks') + ' on ' + days;
+    } else {
+      txt = (e === 1 ? 'Every month' : 'Every ' + e + ' months') + ' on the ' + ord(r.dayOfMonth) + (r.dayOfMonth > 28 ? ' (last day in shorter months)' : '');
+    }
+    if (r.endDate) txt += ', until ' + fmtDate(r.endDate);
+    return txt;
+  }
+
+  /* ---------- rendering ---------- */
+  function render() {
+    if (!getCat(state.selected)) state.selected = state.categories[0] ? state.categories[0].id : null;
+    renderSide();
+    renderMain();
+  }
+
+  function renderSide() {
+    var t = stats(null);
+    var el = $('#total');
+    el.textContent = money(t.balance);
+    el.className = t.balance < 0 ? 'neg' : '';
+    $('#cats').innerHTML = state.categories.map(function (c) {
+      var st = stats(c.id), on = c.id === state.selected;
+      return '<button class="cat' + (on ? ' on' : '') + '" data-action="select-cat" data-id="' + c.id + '"' + (on ? ' aria-current="true"' : '') + '>' +
+        '<span class="dot" style="--c:' + esc(c.color) + '"></span>' +
+        '<span class="cat-name">' + esc(c.name) + '</span>' +
+        '<span class="cat-bal' + (st.balance < 0 ? ' neg' : '') + '">' + money(st.balance) + '</span></button>';
+    }).join('');
+  }
+
+  function bannerHTML() {
+    var h = '';
+    if (!storageOk) h += '<div class="banner warn" role="status"><p>This browser is blocking storage, so your changes will be lost when you close the page. Use Settings and backup to copy your data.</p></div>';
+    if (ui.banner) {
+      h += '<div class="banner" role="status"><div><p><b>Scheduled funds added</b></p><ul>' +
+        ui.banner.lines.map(function (l) { return '<li>' + esc(l) + '</li>'; }).join('') +
+        '</ul></div><button class="link" data-action="dismiss-banner">Dismiss</button></div>';
+    }
+    return h;
+  }
+
+  function renderMain() {
+    var main = $('#main');
+    var cat = getCat(state.selected);
+    if (!cat) {
+      main.innerHTML = bannerHTML() + '<div class="panel empty big"><h2>Create your first fund category</h2>' +
+        '<p>A category is a pot of money, like Rent, Groceries or Travel. Add funds to it and record expenses from it.</p>' +
+        '<button class="btn fund" data-action="add-cat">New category</button></div>';
+      return;
+    }
+    var st = stats(cat.id);
+    var share = st.funded > 0 ? Math.min(1, st.spent / st.funded) : (st.spent > 0 ? 1 : 0);
+    var pct = Math.round(share * 100);
+
+    var head = '<section class="panel head">' +
+      '<div class="head-top"><h2><span class="dot" style="--c:' + esc(cat.color) + '"></span>' + esc(cat.name) + '</h2>' +
+      '<div><button class="link" data-action="edit-cat">Rename</button><button class="link del" data-action="del-cat">Delete category</button></div></div>' +
+      '<div><div class="balance-label">Available balance</div><p class="balance' + (st.balance < 0 ? ' neg' : '') + '">' + money(st.balance) + '</p></div>' +
+      '<div class="meter" role="img" aria-label="' + pct + '% of funds spent"><span class="meter-left" style="width:' + ((1 - share) * 100) + '%"></span><span class="meter-spent" style="width:' + (share * 100) + '%"></span></div>' +
+      '<div class="legend"><span>Added <b>' + money(st.funded) + '</b></span><span>Spent <b>' + money(st.spent) + '</b></span><span>' + pct + '% spent</span></div>' +
+      '<div class="actions-row"><button class="btn fund" data-action="add-fund">Add fund</button><button class="btn expense" data-action="add-expense">Add expense</button></div>' +
+      '</section>';
+
+    var rules = state.rules.filter(function (r) { return r.catId === cat.id; });
+    var today = todayStr();
+    var rulesHTML = '<section class="panel"><div class="section-head"><h3>Scheduled funds</h3><button class="btn small" data-action="add-rule">Add schedule</button></div>';
+    if (!rules.length) {
+      rulesHTML += '<p class="empty">Add money to this category automatically every day, week or month. Entries are created whenever you open this page.</p>';
+    } else {
+      rulesHTML += rules.map(function (r) {
+        var next = occurrences(r, today, addDays(today, 3700), 1)[0];
+        var status = !r.active ? 'Paused' : (next ? 'Next entry ' + fmtDate(next) : 'No more entries scheduled');
+        return '<div class="rule' + (r.active ? '' : ' paused') + '"><div class="rule-main">' +
+          '<strong>' + money(r.amount) + '</strong>' + (r.note ? ' ' + esc(r.note) : '') +
+          '<div class="rule-sub">' + esc(describe(r)) + '</div><div class="rule-sub">' + esc(status) + '</div></div>' +
+          '<div class="rule-act"><button class="link" data-action="toggle-rule" data-id="' + r.id + '">' + (r.active ? 'Pause' : 'Resume') + '</button>' +
+          '<button class="link" data-action="edit-rule" data-id="' + r.id + '">Edit</button>' +
+          '<button class="link del" data-action="del-rule" data-id="' + r.id + '">Delete</button></div></div>';
+      }).join('');
+    }
+    rulesHTML += '</section>';
+
+    var all = state.transactions.filter(function (t) { return t.catId === cat.id; });
+    var list = all.filter(function (t) { return ui.filter === 'all' || t.type === ui.filter; });
+    list.sort(function (a, b) { return a.date < b.date ? 1 : a.date > b.date ? -1 : (b.created || 0) - (a.created || 0); });
+    var txHTML = '<section class="panel"><div class="section-head"><h3>Entries</h3><div class="seg" role="group" aria-label="Filter entries">' +
+      [['all', 'All'], ['fund', 'Funds'], ['expense', 'Expenses']].map(function (f) {
+        return '<button data-action="filter" data-id="' + f[0] + '" aria-pressed="' + (ui.filter === f[0]) + '">' + f[1] + '</button>';
+      }).join('') + '</div></div>';
+    if (!list.length) {
+      txHTML += '<p class="empty">' + (all.length ? 'No entries match this filter.' : 'No entries yet. Add a fund to get this category started.') + '</p>';
+    } else {
+      txHTML += '<div>' + list.map(function (t) {
+        var isFund = t.type === 'fund';
+        return '<div class="tx"><div class="tx-date">' + esc(fmtDate(t.date)) + '</div>' +
+          '<div class="tx-note' + (t.note ? '' : ' dim') + '">' + (t.note ? esc(t.note) : (isFund ? 'Fund added' : 'Expense')) + (t.ruleId ? '<span class="tag">Scheduled</span>' : '') + '</div>' +
+          '<div class="tx-amt ' + (isFund ? 'fund' : 'exp') + '">' + (isFund ? '+' : '\u2212') + money(t.amount) + '</div>' +
+          '<div class="tx-act"><button class="link" data-action="edit-tx" data-id="' + t.id + '">Edit</button><button class="link del" data-action="del-tx" data-id="' + t.id + '">Delete</button></div></div>';
+      }).join('') + '</div>';
+    }
+    txHTML += '</section>';
+
+    main.innerHTML = bannerHTML() + head + rulesHTML + txHTML;
+  }
+
+  /* ---------- modal ---------- */
+  var lastFocus = null;
+  function openModal(o) {
+    closeModal();
+    lastFocus = document.activeElement;
+    var root = $('#modal-root');
+    root.innerHTML = '<div class="overlay" data-overlay><form class="modal" role="dialog" aria-modal="true" aria-labelledby="m-title" novalidate>' +
+      '<h2 id="m-title">' + esc(o.title) + '</h2>' + (o.sub ? '<p class="sub">' + esc(o.sub) + '</p>' : '') +
+      (o.body || '') + '<div class="err" role="alert" data-err></div>' +
+      '<div class="modal-actions"><button type="button" class="btn ghost" data-close>' + (o.cancel || 'Cancel') + '</button>' +
+      (o.onSubmit ? '<button type="submit" class="btn ' + (o.danger ? 'danger' : 'primary') + '">' + esc(o.submit || 'Save') + '</button>' : '') + '</div></form></div>';
+    var form = root.querySelector('form');
+    form.addEventListener('submit', function (e) {
+      e.preventDefault();
+      if (!o.onSubmit) return;
+      var err = o.onSubmit(form);
+      if (err) form.querySelector('[data-err]').textContent = err; else closeModal();
+    });
+    if (o.setup) o.setup(form);
+    var first = form.querySelector('input:not([type=radio]):not([type=checkbox]), textarea, select');
+    (first || form.querySelector('button')).focus();
+    if (first && first.select && first.type !== 'date' && first.type !== 'number') { try { first.select(); } catch (e) {} }
+  }
+  function closeModal() {
+    var root = $('#modal-root');
+    if (!root.innerHTML) return;
+    root.innerHTML = '';
+    if (lastFocus && lastFocus.focus) { try { lastFocus.focus(); } catch (e) {} }
+  }
+  function confirmBox(title, text, label, fn) {
+    openModal({ title: title, body: '<p style="margin:0">' + esc(text) + '</p>', submit: label, danger: true, onSubmit: function () { fn(); } });
+  }
+
+  document.addEventListener('keydown', function (e) {
+    var modal = document.querySelector('.modal');
+    if (!modal) return;
+    if (e.key === 'Escape') { closeModal(); return; }
+    if (e.key === 'Tab') {
+      var f = modal.querySelectorAll('button, input, select, textarea');
+      f = Array.prototype.filter.call(f, function (x) { return !x.disabled && x.offsetParent !== null || x.type === 'radio' || x.type === 'checkbox'; });
+      f = Array.prototype.filter.call(f, function (x) { return getComputedStyle(x).pointerEvents !== 'none' || x.type === 'radio' || x.type === 'checkbox'; });
+      if (!f.length) return;
+      var first = f[0], last = f[f.length - 1];
+      if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
+      else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
+    }
+  });
+  document.addEventListener('click', function (e) {
+    if (e.target.closest('[data-close]')) { closeModal(); return; }
+    if (e.target.hasAttribute && e.target.hasAttribute('data-overlay')) { closeModal(); return; }
+  });
+
+  /* ---------- forms ---------- */
+  function categoryForm(existing) {
+    openModal({
+      title: existing ? 'Rename category' : 'New category',
+      sub: existing ? '' : 'For example Rent, Groceries or Travel.',
+      body: '<div class="field"><label for="c-name">Category name</label><input id="c-name" type="text" name="name" maxlength="40" value="' + (existing ? esc(existing.name) : '') + '"></div>',
+      submit: existing ? 'Save name' : 'Create category',
+      onSubmit: function (f) {
+        var name = f.elements.name.value.trim();
+        if (!name) return 'Enter a category name.';
+        var dup = state.categories.some(function (c) { return c.name.toLowerCase() === name.toLowerCase() && (!existing || c.id !== existing.id); });
+        if (dup) return 'A category with this name already exists.';
+        if (existing) existing.name = name;
+        else {
+          var c = { id: uid(), name: name, color: PALETTE[state.categories.length % PALETTE.length] };
+          state.categories.push(c); state.selected = c.id;
+        }
+        save(); render();
+      }
+    });
+  }
+
+  function txForm(existing, type) {
+    var cat = getCat(state.selected);
+    var t = existing || { type: type, amount: '', date: todayStr(), note: '' };
+    openModal({
+      title: existing ? 'Edit entry' : 'New entry',
+      sub: 'In ' + cat.name,
+      body:
+        '<div class="field"><span class="lbl">Type</span><div class="seg">' +
+        '<label><input type="radio" name="type" value="fund"' + (t.type === 'fund' ? ' checked' : '') + '><span>Fund</span></label>' +
+        '<label><input type="radio" name="type" value="expense"' + (t.type === 'expense' ? ' checked' : '') + '><span>Expense</span></label></div></div>' +
+        '<div class="two"><div class="field"><label for="t-amt">Amount</label><input id="t-amt" type="number" name="amount" inputmode="decimal" step="0.01" min="0" value="' + esc(t.amount) + '"></div>' +
+        '<div class="field"><label for="t-date">Date</label><input id="t-date" type="date" name="date" value="' + esc(t.date) + '"></div></div>' +
+        '<div class="field"><label for="t-note">Note (optional)</label><input id="t-note" type="text" name="note" maxlength="80" value="' + esc(t.note || '') + '"></div>',
+      submit: existing ? 'Save changes' : 'Add entry',
+      onSubmit: function (f) {
+        var amount = parseFloat(f.elements.amount.value);
+        var date = f.elements.date.value;
+        if (!(amount > 0)) return 'Enter an amount greater than 0.';
+        if (!date) return 'Choose a date.';
+        var data = { type: f.elements.type.value, amount: round2(amount), date: date, note: f.elements.note.value.trim() };
+        if (existing) Object.assign(existing, data);
+        else state.transactions.push(Object.assign({ id: uid(), catId: cat.id, created: Date.now() }, data));
+        save(); render();
+      }
+    });
+  }
+
+  function readRule(form) {
+    var g = function (n) { return form.elements[n]; };
+    var amount = parseFloat(g('amount').value);
+    var frequency = g('frequency').value;
+    var every = parseInt(g('every').value, 10);
+    var startDate = g('startDate').value;
+    var endDate = g('endDate').value;
+    var weekdays = Array.prototype.map.call(form.querySelectorAll('input[name=wd]:checked'), function (i) { return +i.value; });
+    var dayOfMonth = parseInt(g('dom').value, 10);
+    var error = '';
+    if (!(every >= 1)) error = 'Repeat interval must be 1 or more.';
+    else if (!startDate) error = 'Choose a start date.';
+    else if (frequency === 'weekly' && !weekdays.length) error = 'Pick at least one weekday.';
+    else if (frequency === 'monthly' && !(dayOfMonth >= 1 && dayOfMonth <= 31)) error = 'Day of month must be between 1 and 31.';
+    else if (endDate && endDate < startDate) error = 'End date must be on or after the start date.';
+    else if (!(amount > 0)) error = 'Enter an amount greater than 0.';
+    return {
+      error: error,
+      scheduleOk: !error || error === 'Enter an amount greater than 0.',
+      rule: { amount: round2(amount || 0), note: g('note').value.trim(), frequency: frequency, every: every, weekdays: weekdays, dayOfMonth: dayOfMonth, startDate: startDate, endDate: endDate }
+    };
+  }
+
+  function ruleForm(existing) {
+    var cat = getCat(state.selected);
+    var today = todayStr();
+    var r = existing || { amount: '', note: '', frequency: 'monthly', every: 1, weekdays: [dow(today)], dayOfMonth: dom(today), startDate: today, endDate: '' };
+    var freqOpt = function (v, label) { return '<label><input type="radio" name="frequency" value="' + v + '"' + (r.frequency === v ? ' checked' : '') + '><span>' + label + '</span></label>'; };
+    var chips = WEEK_ORDER.map(function (d) {
+      return '<label><input type="checkbox" name="wd" value="' + d + '"' + (r.weekdays.indexOf(d) !== -1 ? ' checked' : '') + '><span>' + DAY_NAMES[d] + '</span></label>';
+    }).join('');
+    openModal({
+      title: existing ? 'Edit schedule' : 'New schedule',
+      sub: 'Adds money to ' + cat.name + ' automatically',
+      body:
+        '<div class="two"><div class="field"><label for="r-amt">Amount to add</label><input id="r-amt" type="number" name="amount" inputmode="decimal" step="0.01" min="0" value="' + esc(r.amount) + '"></div>' +
+        '<div class="field"><label for="r-note">Note (optional)</label><input id="r-note" type="text" name="note" maxlength="80" value="' + esc(r.note || '') + '"></div></div>' +
+        '<div class="field"><span class="lbl">Repeats</span><div class="seg">' + freqOpt('daily', 'Daily') + freqOpt('weekly', 'Weekly') + freqOpt('monthly', 'Monthly') + '</div></div>' +
+        '<div class="field"><label for="r-every">Repeat every</label><div class="inline"><input id="r-every" type="number" name="every" min="1" max="365" value="' + r.every + '"><span data-unit></span></div></div>' +
+        '<div class="field" data-show="weekly"><span class="lbl">On these days</span><div class="chips">' + chips + '</div></div>' +
+        '<div class="field" data-show="monthly"><label for="r-dom">Day of the month</label><input id="r-dom" type="number" name="dom" min="1" max="31" value="' + r.dayOfMonth + '"><span class="hint">Days past the end of a short month use its last day.</span></div>' +
+        '<div class="two"><div class="field"><label for="r-start">Start date</label><input id="r-start" type="date" name="startDate" value="' + esc(r.startDate) + '"></div>' +
+        '<div class="field"><label for="r-end">End date (optional)</label><input id="r-end" type="date" name="endDate" value="' + esc(r.endDate || '') + '"></div></div>' +
+        '<div class="preview" data-preview aria-live="polite"></div>',
+      submit: 'Save schedule',
+      setup: function (form) {
+        var dowTouched = !!existing, domTouched = !!existing;
+        var wdBoxes = form.querySelectorAll('input[name=wd]');
+        Array.prototype.forEach.call(wdBoxes, function (b) { b.addEventListener('input', function () { dowTouched = true; }); });
+        form.elements.dom.addEventListener('input', function () { domTouched = true; });
+        function sync() {
+          var f = form.elements.frequency.value;
+          form.querySelector('[data-show=weekly]').hidden = f !== 'weekly';
+          form.querySelector('[data-show=monthly]').hidden = f !== 'monthly';
+          var n = parseInt(form.elements.every.value, 10) || 1;
+          var base = { daily: 'day', weekly: 'week', monthly: 'month' }[f];
+          form.querySelector('[data-unit]').textContent = base + (n === 1 ? '' : 's');
+          var res = readRule(form), box = form.querySelector('[data-preview]');
+          if (!res.scheduleOk) { box.textContent = res.error; return; }
+          var due = occurrences(res.rule, existing ? existing.lastRun : null, today);
+          var next = occurrences(res.rule, today, addDays(today, 3700), 1)[0];
+          var msg = '';
+          if (due.length) {
+            msg = (due.length >= MAX_PER_RUN ? 'At least ' : '') + due.length + (due.length === 1 ? ' entry' : ' entries') + ' dated ' + fmtDate(due[0]) + (due.length > 1 ? ' to ' + fmtDate(due[due.length - 1]) : '') + ' will be added when you save. ';
+            msg += next ? 'Next after that: ' + fmtDate(next) + '.' : 'No entries are scheduled after that.';
+          } else {
+            msg = next ? 'First entry on ' + fmtDate(next) + '.' : 'No entries will be created with these settings.';
+          }
+          box.textContent = msg;
+        }
+        form.addEventListener('input', function (e) {
+          if (e.target.name === 'startDate' && form.elements.startDate.value) {
+            var s = form.elements.startDate.value;
+            if (!dowTouched) Array.prototype.forEach.call(wdBoxes, function (b) { b.checked = +b.value === dow(s); });
+            if (!domTouched) form.elements.dom.value = dom(s);
+          }
+          sync();
+        });
+        form.addEventListener('change', sync);
+        sync();
+      },
+      onSubmit: function (form) {
+        var res = readRule(form);
+        if (res.error) return res.error;
+        if (existing) Object.assign(existing, res.rule);
+        else state.rules.push(Object.assign({ id: uid(), catId: cat.id, active: true, lastRun: null }, res.rule));
+        runSchedules(); save(); render();
+      }
+    });
+  }
+
+  function settingsForm() {
+    var opts = Object.keys(CURRENCIES).map(function (c) { return '<option value="' + c + '"' + (c === state.currency ? ' selected' : '') + '>' + c + '</option>'; }).join('');
+    openModal({
+      title: 'Settings and backup',
+      cancel: 'Close',
+      submit: 'Restore from text',
+      body:
+        '<div class="field"><label for="s-cur">Currency</label><select id="s-cur" name="currency">' + opts + '</select></div>' +
+        '<div class="field"><label for="s-data">Backup</label><textarea id="s-data" name="data" spellcheck="false"></textarea>' +
+        '<span class="hint">Your data is stored on this device only. Copy this text somewhere safe, then paste it here to restore. An app installed on an iPhone keeps its own storage, so restore your backup there once.</span>' +
+        '<div class="inline"><button type="button" class="btn small" data-copy>Copy backup</button><span class="status" data-status></span></div></div>',
+      setup: function (form) {
+        var ta = form.elements.data;
+        ta.value = JSON.stringify(state);
+        form.elements.currency.addEventListener('change', function () { state.currency = form.elements.currency.value; save(); render(); });
+        form.querySelector('[data-copy]').addEventListener('click', function () {
+          var status = form.querySelector('[data-status]');
+          ta.value = JSON.stringify(state);
+          function fallback() { ta.select(); var ok = false; try { ok = document.execCommand('copy'); } catch (e) {} status.textContent = ok ? 'Copied.' : 'Select the text and copy it manually.'; }
+          if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(ta.value).then(function () { status.textContent = 'Copied.'; }, fallback);
+          else fallback();
+        });
+      },
+      onSubmit: function (form) {
+        var parsed;
+        try { parsed = JSON.parse(form.elements.data.value); } catch (e) { return 'That text is not valid backup data.'; }
+        if (!parsed || !Array.isArray(parsed.categories) || !Array.isArray(parsed.transactions) || !Array.isArray(parsed.rules)) return 'That text is not valid backup data.';
+        state = normalize(parsed); save(); ui.banner = null; runSchedules(); render();
+      }
+    });
+  }
+
+  /* ---------- actions ---------- */
+  document.addEventListener('click', function (e) {
+    var el = e.target.closest('[data-action]');
+    if (!el) return;
+    var a = el.dataset.action, id = el.dataset.id, cat = getCat(state.selected);
+    var tx = id ? state.transactions.filter(function (t) { return t.id === id; })[0] : null;
+    var rule = id ? state.rules.filter(function (r) { return r.id === id; })[0] : null;
+    switch (a) {
+      case 'select-cat': state.selected = id; save(); render(); break;
+      case 'add-cat': categoryForm(); break;
+      case 'edit-cat': categoryForm(cat); break;
+      case 'del-cat': {
+        var nTx = state.transactions.filter(function (t) { return t.catId === cat.id; }).length;
+        var nR = state.rules.filter(function (r) { return r.catId === cat.id; }).length;
+        confirmBox('Delete "' + cat.name + '"?', 'This also deletes its ' + nTx + (nTx === 1 ? ' entry' : ' entries') + ' and ' + nR + (nR === 1 ? ' schedule' : ' schedules') + '. You can\u2019t undo this.', 'Delete category', function () {
+          state.transactions = state.transactions.filter(function (t) { return t.catId !== cat.id; });
+          state.rules = state.rules.filter(function (r) { return r.catId !== cat.id; });
+          state.categories = state.categories.filter(function (c) { return c.id !== cat.id; });
+          state.selected = null; save(); render();
+        });
+        break;
+      }
+      case 'add-fund': txForm(null, 'fund'); break;
+      case 'add-expense': txForm(null, 'expense'); break;
+      case 'edit-tx': if (tx) txForm(tx); break;
+      case 'del-tx': if (tx) confirmBox('Delete this entry?', (tx.type === 'fund' ? 'Fund of ' : 'Expense of ') + money(tx.amount) + ' on ' + fmtDate(tx.date) + ' will be removed.', 'Delete entry', function () {
+        state.transactions = state.transactions.filter(function (t) { return t.id !== tx.id; }); save(); render();
+      }); break;
+      case 'add-rule': ruleForm(null); break;
+      case 'edit-rule': if (rule) ruleForm(rule); break;
+      case 'del-rule': if (rule) confirmBox('Delete this schedule?', 'No new funds will be added. Entries it already created stay in the list.', 'Delete schedule', function () {
+        state.rules = state.rules.filter(function (r) { return r.id !== rule.id; }); save(); render();
+      }); break;
+      case 'toggle-rule':
+        if (rule) {
+          rule.active = !rule.active;
+          if (rule.active) { var y = addDays(todayStr(), -1); if (!rule.lastRun || rule.lastRun < y) rule.lastRun = y; runSchedules(); }
+          save(); render();
+        }
+        break;
+      case 'filter': ui.filter = id; render(); break;
+      case 'dismiss-banner': ui.banner = null; render(); break;
+      case 'settings': settingsForm(); break;
+    }
+  });
+
+  /* ---------- start ---------- */
+  runSchedules();
+  render();
+  // Catch up when the tab is reopened or a new day starts while the page stays open.
+  document.addEventListener('visibilitychange', function () { if (!document.hidden && runSchedules()) render(); });
+  setInterval(function () { if (runSchedules()) render(); }, 60000);
+})();
+</script>
+<script>
+(function () {
+  var deferred = null, btn = document.getElementById('install');
+  window.addEventListener('beforeinstallprompt', function (e) { e.preventDefault(); deferred = e; btn.hidden = false; });
+  btn.addEventListener('click', function () {
+    if (!deferred) return;
+    deferred.prompt();
+    deferred.userChoice.then(function () { deferred = null; btn.hidden = true; });
+  });
+  window.addEventListener('appinstalled', function () { btn.hidden = true; });
+  if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.hostname === 'localhost')) {
+    window.addEventListener('load', function () { navigator.serviceWorker.register('sw.js').catch(function () {}); });
+  }
+  // Ask the browser not to evict saved data when storage runs low.
+  if (navigator.storage && navigator.storage.persist) { navigator.storage.persist().catch(function () {}); }
+})();
+</script>
+</body>
+</html>
